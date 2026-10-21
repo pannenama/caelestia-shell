@@ -10,7 +10,10 @@ import qs.utils
 Item {
     id: root
 
-    // ---------- Data ----------
+    implicitWidth: 850
+    implicitHeight: 450
+
+    // ---------- Data: reading ----------
 
     FileView {
         id: todoFile
@@ -34,7 +37,7 @@ Item {
         for (const line of text.split("\n")) {
             const task = line.match(/^- \[( |x|X)\] (.*)$/);
             if (task) {
-                current = { done: task[1] !== " ", text: task[2], steps: [], note: "" };
+                current = { index: result.length, done: task[1] !== " ", text: task[2], steps: [], note: "" };
                 result.push(current);
                 continue;
             }
@@ -54,6 +57,47 @@ Item {
         }
 
         return result;
+    }
+
+    // ---------- Data: writing ----------
+
+    function serialize(list) {
+        const lines = [];
+        for (const t of list) {
+            lines.push(`- [${t.done ? "x" : " "}] ${t.text}`);
+            for (const s of t.steps)
+                lines.push(`    - [${s.done ? "x" : " "}] ${s.text}`);
+            if (t.note)
+                for (const n of t.note.split("\n"))
+                    lines.push(`    > ${n}`);
+        }
+        return lines.join("\n") + "\n";
+    }
+
+    function copyTasks() {
+        return JSON.parse(JSON.stringify(tasks));
+    }
+
+    function save(list) {
+        todoFile.setText(serialize(list));
+    }
+
+    function toggleTask(i) {
+        const list = copyTasks();
+        list[i].done = !list[i].done;
+        save(list);
+    }
+
+    function deleteTask(i) {
+        const list = copyTasks();
+        list.splice(i, 1);
+        save(list);
+    }
+
+    function addTask(text) {
+        const list = copyTasks();
+        list.push({ done: false, text: text, steps: [], note: "" });
+        save(list);
     }
 
     // ---------- Left card: task list ----------
@@ -93,7 +137,7 @@ Item {
             anchors.top: header.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            anchors.bottom: parent.bottom
+            anchors.bottom: addRow.top
             anchors.margins: Tokens.padding.large
             contentHeight: list.implicitHeight
             clip: true
@@ -107,7 +151,10 @@ Item {
                 Repeater {
                     model: root.openTasks
 
-                    delegate: TaskRow {}
+                    delegate: TaskRow {
+                        onToggled: root.toggleTask(modelData.index)
+                        onDeleteRequested: root.deleteTask(modelData.index)
+                    }
                 }
 
                 Item {
@@ -146,59 +193,157 @@ Item {
                 Repeater {
                     model: root.showDone ? root.doneTasks : []
 
-                    delegate: TaskRow {}
+                    delegate: TaskRow {
+                        onToggled: root.toggleTask(modelData.index)
+                        onDeleteRequested: root.deleteTask(modelData.index)
+                    }
+                }
+            }
+        }
+
+        StyledRect {
+            id: addRow
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: Tokens.padding.large
+            implicitHeight: addIcon.implicitHeight + Tokens.padding.large * 2
+
+            radius: Tokens.rounding.large
+            color: Colours.palette.m3surfaceContainerHighest
+
+            MaterialIcon {
+                id: addIcon
+
+                anchors.left: parent.left
+                anchors.leftMargin: Tokens.padding.large
+                anchors.verticalCenter: parent.verticalCenter
+                text: "add"
+                color: Colours.palette.m3primary
+                fontStyle: Tokens.font.icon.large
+            }
+
+            StyledText {
+                id: addPlaceholder
+
+                anchors.left: addIcon.right
+                anchors.leftMargin: Tokens.padding.medium
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Add a task"
+                color: Colours.palette.m3onSurfaceVariant
+                visible: addInput.text === ""
+            }
+
+            TextInput {
+                id: addInput
+
+                anchors.left: addPlaceholder.left
+                anchors.right: parent.right
+                anchors.rightMargin: Tokens.padding.large
+                anchors.verticalCenter: parent.verticalCenter
+                font: addPlaceholder.font
+                color: Colours.palette.m3onSurface
+                clip: true
+
+                onAccepted: {
+                    const value = text.trim();
+                    if (value !== "")
+                        root.addTask(value);
+                    text = "";
                 }
             }
         }
     }
 
     component TaskRow: StyledRect {
+        id: row
+
         required property var modelData
 
+        signal toggled
+        signal deleteRequested
+
         width: parent ? parent.width : 0
-        implicitHeight: rowContent.implicitHeight + Tokens.padding.large * 2
+        implicitHeight: Math.max(textColumn.implicitHeight, checkIcon.implicitHeight) + Tokens.padding.large * 2
         radius: Tokens.rounding.large
         color: modelData.done ? "transparent" : Colours.palette.m3surfaceContainerHighest
 
-        Row {
-            id: rowContent
+        HoverHandler {
+            id: hover
+        }
+
+        MaterialIcon {
+            id: checkIcon
 
             anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: Tokens.padding.large
-            spacing: Tokens.spacing.normal
+            anchors.verticalCenter: parent.verticalCenter
+            text: row.modelData.done ? "check_circle" : "radio_button_unchecked"
+            fill: row.modelData.done ? 1 : 0
+            color: Colours.palette.m3primary
+            fontStyle: Tokens.font.icon.large
 
-            MaterialIcon {
-                anchors.verticalCenter: parent.verticalCenter
-                text: modelData.done ? "check_circle" : "radio_button_unchecked"
-                fill: modelData.done ? 1 : 0
-                color: Colours.palette.m3primary
-                fontStyle: Tokens.font.icon.large
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -Tokens.padding.small
+                cursorShape: Qt.PointingHandCursor
+                onClicked: row.toggled()
+            }
+        }
+
+        Column {
+            id: textColumn
+
+            anchors.left: checkIcon.right
+            anchors.leftMargin: Tokens.padding.medium
+            anchors.right: deleteIcon.left
+            anchors.rightMargin: Tokens.padding.medium
+            anchors.verticalCenter: parent.verticalCenter
+
+            StyledText {
+                width: parent.width
+                text: row.modelData.text
+                color: row.modelData.done ? Colours.palette.m3onSurfaceVariant : Colours.palette.m3onSurface
+                font.strikeout: row.modelData.done
+                elide: Text.ElideRight
             }
 
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-
-                StyledText {
-                    text: modelData.text
-                    color: modelData.done ? Colours.palette.m3onSurfaceVariant : Colours.palette.m3onSurface
-                    font.strikeout: modelData.done
+            StyledText {
+                visible: !row.modelData.done && (row.modelData.steps.length > 0 || row.modelData.note !== "")
+                text: {
+                    const parts = [];
+                    if (row.modelData.steps.length > 0)
+                        parts.push(`${row.modelData.steps.filter(s => s.done).length} of ${row.modelData.steps.length} steps`);
+                    if (row.modelData.note !== "")
+                        parts.push("note");
+                    return parts.join("  ·  ");
                 }
+                color: Colours.palette.m3onSurfaceVariant
+                font.pointSize: 9
+            }
+        }
 
-                StyledText {
-                    visible: !modelData.done && (modelData.steps.length > 0 || modelData.note !== "")
-                    text: {
-                        const parts = [];
-                        if (modelData.steps.length > 0)
-                            parts.push(`${modelData.steps.filter(s => s.done).length} of ${modelData.steps.length} steps`);
-                        if (modelData.note !== "")
-                            parts.push("note");
-                        return parts.join("  ·  ");
-                    }
-                    color: Colours.palette.m3onSurfaceVariant
-                    font.pointSize: 9
-                }
+        MaterialIcon {
+            id: deleteIcon
+
+            anchors.right: parent.right
+            anchors.rightMargin: Tokens.padding.large
+            anchors.verticalCenter: parent.verticalCenter
+            text: "delete"
+            color: Colours.palette.m3onSurfaceVariant
+            opacity: hover.hovered ? 1 : 0
+
+            Behavior on opacity {
+                Anim {}
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                anchors.margins: -Tokens.padding.small
+                enabled: hover.hovered
+                cursorShape: Qt.PointingHandCursor
+                onClicked: row.deleteRequested()
             }
         }
     }
@@ -220,7 +365,7 @@ Item {
             anchors.top: parent.top
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.topMargin: Tokens.padding.extraLarge
-            spacing: Tokens.spacing.normal
+            spacing: Tokens.spacing.small
 
             Item {
                 width: 170

@@ -24,6 +24,12 @@ Item {
                 enabled: Config.dashboard.showDashboard
             },
             {
+                component: todoComponent,
+                iconName: "checklist",
+                text: "To-do",
+                enabled: true
+            },
+            {
                 component: mediaComponent,
                 iconName: "queue_music",
                 text: Tr.tr("Media"),
@@ -159,6 +165,12 @@ Item {
                     screenState: root.screenState
                     facePicker: root.facePicker
                 }
+            }
+
+            Component {
+                id: todoComponent
+
+                Todo {}
             }
 
             Component {
