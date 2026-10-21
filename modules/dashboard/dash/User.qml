@@ -10,6 +10,7 @@ import qs.components.filedialog
 import qs.components.images
 import qs.services
 import qs.utils
+import Quickshell.Io
 
 Item {
     id: root
@@ -24,6 +25,14 @@ Item {
 
     Behavior on pfpFallbackColour {
         CAnim {}
+    }
+
+    FileView {
+        id: moodFile
+
+        path: `${Paths.home}/.config/caelestia/mood.txt`
+        watchChanges: true          // notice when the file changes
+        onFileChanged: reload()     // ...and read it again when it does
     }
 
     Item {
@@ -135,6 +144,7 @@ Item {
     MaterialShape {
         id: logoShape
 
+        visible: false
         x: Tokens.padding.extraSmall
         implicitSize: Tokens.sizes.dashboard.logoSize + Tokens.padding.small * 2
         shape: MaterialShape.Gem
@@ -176,6 +186,7 @@ Item {
     MaterialShape {
         id: uptimeShape
 
+        visible: false
         anchors.bottom: parent.bottom
         anchors.left: pfpContainer.right
         anchors.bottomMargin: -Tokens.padding.small // Clamshell is taller than what it is visually
@@ -197,7 +208,7 @@ Item {
     }
 
     StyledText {
-        anchors.left: uptimeShape.right
+        anchors.left: pfpContainer.right // from uptimeSHape.right
         anchors.verticalCenter: uptimeShape.verticalCenter
         anchors.leftMargin: Tokens.spacing.small
         anchors.verticalCenterOffset: Math.round(fontInfo.pointSize * 0.1)
@@ -238,6 +249,7 @@ Item {
     StyledRect {
         id: wmContainer
 
+        
         anchors.left: bubble2.left
         anchors.leftMargin: -Tokens.padding.medium
         y: Tokens.padding.extraSmall
@@ -267,7 +279,7 @@ Item {
 
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.verticalCenterOffset: Math.round(fontInfo.pointSize * 0.1)
-                text: SysInfo.wm + "..."
+                text: moodFile.text().trim() || "no mood set" //from: text: SysInfo.wm + "..."
                 color: Colours.palette.m3onSecondaryContainer
                 font: Tokens.font.body.builders.small.vaxis("slnt", -4).build()
                 width: Math.min(implicitWidth, Tokens.sizes.dashboard.userWidth - wmContainer.x - Tokens.padding.medium * 2 - wmIcon.implicitWidth - wmLabel.spacing - Tokens.padding.extraLarge)
